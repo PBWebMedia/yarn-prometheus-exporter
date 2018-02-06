@@ -1,0 +1,38 @@
+image: docker:latest
+
+stages:
+  - build
+  - image
+
+variables:
+  DOCKER_DRIVER: overlay2
+
+compile:
+  stage: build
+  image: $CI_REGISTRY/docker/images/go-build:latest
+  script:
+    - go get || true
+    - CGO_ENABLED=0 go build -o yarn-prometheus-exporter .
+  artifacts:
+    name: "artifact_{$CI_COMMIT_SHA}"
+    expire_in: 30 min
+    paths:
+      - yarn-prometheus-exporter
+      - Dockerfile
+
+build-docker:
+  stage: image
+  before_script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+  script:
+    - if [ "${CI_COMMIT_REF_SLUG}" == "master" ]; then IMAGE_TAG="latest"; else IMAGE_TAG="${CI_COMMIT_REF_SLUG}"; fi
+    - docker build --pull -t $CI_REGISTRY_IMAGE:$IMAGE_TAG .
+    - docker push $CI_REGISTRY_IMAGE:$IMAGE_TAG
+  dependencies:
+    - compile
+  variables:
+    GIT_STRATEGY: none
+    DOCKER_DRIVER: overlay2
+  tags:
+    - docker-images
+
