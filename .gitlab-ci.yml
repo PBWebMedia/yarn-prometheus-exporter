@@ -9,7 +9,7 @@ variables:
 
 compile:
   stage: build
-  image: $CI_REGISTRY/docker/images/go-build:latest
+  image: $CI_REGISTRY/backend/docker/images/go-build:latest
   script:
     - go get || true
     - CGO_ENABLED=0 go build -o yarn-prometheus-exporter .
