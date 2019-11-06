@@ -1,4 +1,4 @@
 FROM scratch
 
-COPY ./yarn-prometheus-exporter /yarn-prometheus-exporter
+COPY . /yarn-prometheus-exporter
 ENTRYPOINT ["/yarn-prometheus-exporter"]
