@@ -2,24 +2,25 @@ package main
 
 import (
 	"log"
-	"os"
-	"net/url"
 	"net/http"
+	"net/url"
+	"os"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	addr     string
-	endpoint *url.URL
+	addr                   string
+	clusterMetricsEndpoint *url.URL
+	appsEndpoint           *url.URL
 )
 
 func main() {
 	loadEnv()
 
-	c := newCollector(endpoint)
-	prometheus.Register(c)
+	prometheus.MustRegister(newClusterMetricsCollector(clusterMetricsEndpoint))
+	prometheus.MustRegister(newAppsCollector(appsEndpoint))
 
 	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(addr, nil))
@@ -27,18 +28,24 @@ func main() {
 
 func loadEnv() {
 	addr = getEnvOr("YARN_PROMETHEUS_LISTEN_ADDR", ":9113")
-
 	scheme := getEnvOr("YARN_PROMETHEUS_ENDPOINT_SCHEME", "http")
 	host := getEnvOr("YARN_PROMETHEUS_ENDPOINT_HOST", "localhost")
 	port := getEnvOr("YARN_PROMETHEUS_ENDPOINT_PORT", "8088")
-	path := getEnvOr("YARN_PROMETHEUS_ENDPOINT_PATH", "ws/v1/cluster/metrics")
+	clusterMetricsPath := getEnvOr("YARN_PROMETHEUS_CLUSTERMETRICS_PATH", "ws/v1/cluster/metrics")
+	appsPath := getEnvOr("YARN_PROMETHEUS_APPLICATION_PATH", "ws/v1/cluster/apps")
+	// ?applicationStates=running&applicationTypes=spark&queue=default
 
-	e, err := url.Parse(scheme + "://" + host + ":" + port + "/" + path)
+	cme, err := url.Parse(scheme + "://" + host + ":" + port + "/" + clusterMetricsPath)
 	if err != nil {
 		log.Fatal()
 	}
+	clusterMetricsEndpoint = cme
 
-	endpoint = e
+	ae, err := url.Parse(scheme + "://" + host + ":" + port + "/" + appsPath)
+	if err != nil {
+		log.Fatal()
+	}
+	appsEndpoint = ae
 }
 
 func getEnvOr(key string, defaultValue string) string {
