@@ -85,6 +85,8 @@ func (c *appsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.appStateRunning
 }
 
+var persistedApps []string
+
 func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
 	up := 1.0
 
@@ -110,9 +112,14 @@ func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
 		} else {
 			appStates[app.Name] = []string{app.State}
 		}
+
+		if !stringInSlice(app.Name, persistedApps) {
+			persistedApps = append(persistedApps, app.Name)
+		}
 	}
 
 	// dump the metrics based on app state map
+	var keys []string
 	for k, v := range appStates {
 		var running bool
 		if stringInSlice("RUNNING", v) {
@@ -121,6 +128,13 @@ func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
 			running = false
 		}
 		ch <- prometheus.MustNewConstMetric(c.appStateRunning, prometheus.GaugeValue, float64(boolToInt(running)), k)
+		keys = append(keys, k)
+	}
+
+	for _, v := range persistedApps {
+		if !stringInSlice(v, keys) {
+			ch <- prometheus.MustNewConstMetric(c.appStateRunning, prometheus.GaugeValue, float64(boolToInt(false)), v)
+		}
 	}
 
 	return
