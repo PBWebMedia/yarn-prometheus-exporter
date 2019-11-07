@@ -66,41 +66,23 @@ type Applications struct {
 }
 
 type appsCollector struct {
-	endpoint          *url.URL
-	appStateRunning   *prometheus.Desc
-	appStateFailed    *prometheus.Desc
-	appStateFinished  *prometheus.Desc
-	appStateAccepted  *prometheus.Desc
-	appStateSubmitted *prometheus.Desc
-	appStateKilled    *prometheus.Desc
-	appStateUnknown   *prometheus.Desc
+	endpoint        *url.URL
+	appStateRunning *prometheus.Desc
 }
 
 func newAppsFuncMetric(metricName string, docString string) *prometheus.Desc {
-	return prometheus.NewDesc(prometheus.BuildFQName("yarn", "", metricName), docString, []string{"id", "name", "container_logs_url"}, nil)
+	return prometheus.NewDesc(prometheus.BuildFQName("yarn", "", metricName), docString, []string{"name"}, nil)
 }
 
 func newAppsCollector(endpoint *url.URL) *appsCollector {
 	return &appsCollector{
-		endpoint:          endpoint,
-		appStateRunning:   newAppsFuncMetric("app_state_running", "Running applications"),
-		appStateFailed:    newAppsFuncMetric("app_state_failed", "Failed applications"),
-		appStateFinished:  newAppsFuncMetric("app_state_finished", "Finished applications"),
-		appStateAccepted:  newAppsFuncMetric("app_state_accepted", "Accepted applications"),
-		appStateSubmitted: newAppsFuncMetric("app_state_submitted", "Submitted applications"),
-		appStateKilled:    newAppsFuncMetric("app_state_killed", "Killed applications"),
-		appStateUnknown:   newAppsFuncMetric("app_state_unknown", "Unknown applications"),
+		endpoint:        endpoint,
+		appStateRunning: newAppsFuncMetric("app_state_running", "Running applications"),
 	}
 }
 
 func (c *appsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.appStateRunning
-	ch <- c.appStateFailed
-	ch <- c.appStateFinished
-	ch <- c.appStateAccepted
-	ch <- c.appStateSubmitted
-	ch <- c.appStateKilled
-	ch <- c.appStateUnknown
 }
 
 func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
@@ -117,26 +99,47 @@ func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	apps := data.Apps.App
+	appStates := map[string][]string{}
+
+	// generate a unique map of apps with their associated states
 	for _, app := range apps {
-		switch state := app.State; state {
-		case "RUNNING":
-			ch <- prometheus.MustNewConstMetric(c.appStateRunning, prometheus.GaugeValue, 1, app.ID, app.Name, app.AmContainerLogs)
-		case "FAILED":
-			ch <- prometheus.MustNewConstMetric(c.appStateFailed, prometheus.GaugeValue, 1, app.ID, app.Name, app.AmContainerLogs)
-		case "FINISHED":
-			ch <- prometheus.MustNewConstMetric(c.appStateFinished, prometheus.GaugeValue, 1, app.ID, app.Name, app.AmContainerLogs)
-		case "ACCEPTED":
-			ch <- prometheus.MustNewConstMetric(c.appStateAccepted, prometheus.GaugeValue, 1, app.ID, app.Name, app.AmContainerLogs)
-		case "SUBMITTED":
-			ch <- prometheus.MustNewConstMetric(c.appStateSubmitted, prometheus.GaugeValue, 1, app.ID, app.Name, app.AmContainerLogs)
-		case "KILLED":
-			ch <- prometheus.MustNewConstMetric(c.appStateKilled, prometheus.GaugeValue, 1, app.ID, app.Name, app.AmContainerLogs)
-		default:
-			ch <- prometheus.MustNewConstMetric(c.appStateUnknown, prometheus.GaugeValue, 1, app.ID, app.Name, app.AmContainerLogs)
+		if _, ok := appStates[app.Name]; ok {
+			if !stringInSlice(app.State, appStates[app.Name]) {
+				appStates[app.Name] = append(appStates[app.Name], app.State)
+			}
+		} else {
+			appStates[app.Name] = []string{app.State}
 		}
 	}
 
+	// dump the metrics based on app state map
+	for k, v := range appStates {
+		var running bool
+		if stringInSlice("RUNNING", v) {
+			running = true
+		} else {
+			running = false
+		}
+		ch <- prometheus.MustNewConstMetric(c.appStateRunning, prometheus.GaugeValue, float64(boolToInt(running)), k)
+	}
+
 	return
+}
+
+func boolToInt(boo bool) int {
+	if boo {
+		return 1
+	}
+	return 0
+}
+
+func stringInSlice(str string, list []string) bool {
+	for _, v := range list {
+		if v == str {
+			return true
+		}
+	}
+	return false
 }
 
 func fetchApps(u *url.URL) (Applications, error) {
