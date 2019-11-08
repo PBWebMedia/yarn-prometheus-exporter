@@ -7,9 +7,14 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+var persistedApps map[string]time.Time
+
+const persistAppMaxMinutes = 24 * 60
 
 type Applications struct {
 	Apps struct {
@@ -75,6 +80,7 @@ func newAppsFuncMetric(metricName string, docString string) *prometheus.Desc {
 }
 
 func newAppsCollector(endpoint *url.URL) *appsCollector {
+	persistedApps = make(map[string]time.Time)
 	return &appsCollector{
 		endpoint:        endpoint,
 		appStateRunning: newAppsFuncMetric("app_state_running", "Running applications"),
@@ -84,8 +90,6 @@ func newAppsCollector(endpoint *url.URL) *appsCollector {
 func (c *appsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.appStateRunning
 }
-
-var persistedApps []string
 
 func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
 	up := 1.0
@@ -102,6 +106,7 @@ func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
 
 	apps := data.Apps.App
 	appStates := map[string][]string{}
+	now := time.Now()
 
 	// generate a unique map of apps with their associated states
 	for _, app := range apps {
@@ -113,9 +118,7 @@ func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
 			appStates[app.Name] = []string{app.State}
 		}
 
-		if !stringInSlice(app.Name, persistedApps) {
-			persistedApps = append(persistedApps, app.Name)
-		}
+		persistedApps[app.Name] = now
 	}
 
 	// dump the metrics based on app state map
@@ -131,9 +134,17 @@ func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
 		keys = append(keys, k)
 	}
 
-	for _, v := range persistedApps {
-		if !stringInSlice(v, keys) {
-			ch <- prometheus.MustNewConstMetric(c.appStateRunning, prometheus.GaugeValue, float64(boolToInt(false)), v)
+	// clean up list of persisted apps if they haven't been seen in a while, otherwise set them to a non-running state if weren't found to be running
+	for k, v := range persistedApps {
+		delta := now.Sub(v)
+		deltaMinutes := int(delta.Minutes())
+
+		if deltaMinutes > persistAppMaxMinutes {
+			delete(persistedApps, k)
+		} else {
+			if !stringInSlice(k, keys) {
+				ch <- prometheus.MustNewConstMetric(c.appStateRunning, prometheus.GaugeValue, float64(boolToInt(false)), k)
+			}
 		}
 	}
 
