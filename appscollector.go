@@ -13,8 +13,7 @@ import (
 )
 
 var persistedApps map[string]time.Time
-
-const persistAppMaxMinutes = 24 * 60
+var persistedAppMaxMinutes int
 
 type Applications struct {
 	Apps struct {
@@ -79,8 +78,9 @@ func newAppsFuncMetric(metricName string, docString string) *prometheus.Desc {
 	return prometheus.NewDesc(prometheus.BuildFQName("yarn", "", metricName), docString, []string{"name"}, nil)
 }
 
-func newAppsCollector(endpoint *url.URL) *appsCollector {
+func newAppsCollector(endpoint *url.URL, persistAppMaxMinutes int) *appsCollector {
 	persistedApps = make(map[string]time.Time)
+	persistedAppMaxMinutes = persistAppMaxMinutes
 	return &appsCollector{
 		endpoint:        endpoint,
 		appStateRunning: newAppsFuncMetric("app_state_running", "Running applications"),
@@ -139,7 +139,7 @@ func (c *appsCollector) Collect(ch chan<- prometheus.Metric) {
 		delta := now.Sub(v)
 		deltaMinutes := int(delta.Minutes())
 
-		if deltaMinutes > persistAppMaxMinutes {
+		if deltaMinutes > persistedAppMaxMinutes {
 			delete(persistedApps, k)
 		} else {
 			if !stringInSlice(k, keys) {
