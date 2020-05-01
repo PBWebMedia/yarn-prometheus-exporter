@@ -12,16 +12,18 @@ import (
 )
 
 var (
-	addr                   string
-	clusterMetricsEndpoint *url.URL
-	appsEndpoint           *url.URL
-	appExpirationMinutes   int
+	addr                     string
+	clusterMetricsEndpoint   *url.URL
+	clusterSchedulerEndpoint *url.URL
+	appsEndpoint             *url.URL
+	appExpirationMinutes     int
 )
 
 func main() {
 	loadEnv()
 
 	prometheus.MustRegister(newClusterMetricsCollector(clusterMetricsEndpoint))
+	prometheus.MustRegister(newClusterSchedulerCollector(clusterSchedulerEndpoint))
 	prometheus.MustRegister(newAppsCollector(appsEndpoint, appExpirationMinutes))
 
 	http.Handle("/metrics", promhttp.Handler())
@@ -33,6 +35,7 @@ func loadEnv() {
 	scheme := getEnvOr("YARN_PROMETHEUS_ENDPOINT_SCHEME", "http")
 	host := getEnvOr("YARN_PROMETHEUS_ENDPOINT_HOST", "localhost")
 	port := getEnvOr("YARN_PROMETHEUS_ENDPOINT_PORT", "8088")
+	clusterSchedulerPath := getEnvOr("YARN_PROMETHEUS_CLUSTERSCHEDULER_PATH", "ws/v1/cluster/scheduler")
 	clusterMetricsPath := getEnvOr("YARN_PROMETHEUS_CLUSTERMETRICS_PATH", "ws/v1/cluster/metrics")
 	appsPath := getEnvOr("YARN_PROMETHEUS_APPLICATION_PATH", "ws/v1/cluster/apps")
 	appExpiration := getEnvOr("YARN_PROMETHEUS_APPLICATION_EXPIRATION_MINUTES", "1440")
@@ -49,6 +52,12 @@ func loadEnv() {
 		log.Fatal()
 	}
 	clusterMetricsEndpoint = cme
+
+	cse, err := url.Parse(scheme + "://" + host + ":" + port + "/" + clusterSchedulerPath)
+	if err != nil {
+		log.Fatal()
+	}
+	clusterSchedulerEndpoint = cse
 
 	ae, err := url.Parse(scheme + "://" + host + ":" + port + "/" + appsPath)
 	if err != nil {
