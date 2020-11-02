@@ -1,13 +1,14 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-	"io/ioutil"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"errors"
-	"encoding/json"
 )
 
 type collector struct {
