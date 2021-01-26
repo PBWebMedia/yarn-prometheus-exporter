@@ -1,4 +1,4 @@
-image: docker:latest
+image: golang:1-alpine
 
 stages:
   - build
@@ -9,7 +9,6 @@ variables:
 
 compile:
   stage: build
-  image: $CI_REGISTRY/backend/docker/images/go-build-alpine:latest
   script:
     - go get || true
     - CGO_ENABLED=0 go build -o yarn-prometheus-exporter .
@@ -22,7 +21,12 @@ compile:
 
 build-docker:
   stage: image
+  image: docker:latest
+  services:
+    - docker:dind
   before_script:
+    - mkdir -p $HOME/.docker
+    - echo $DOCKER_AUTH_CONFIG > $HOME/.docker/config.json
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
   script:
     - if [ "${CI_COMMIT_REF_SLUG}" == "master" ]; then IMAGE_TAG="latest"; else IMAGE_TAG="${CI_COMMIT_REF_SLUG}"; fi
@@ -32,7 +36,6 @@ build-docker:
     - compile
   variables:
     GIT_STRATEGY: none
-    DOCKER_DRIVER: overlay2
   tags:
     - docker-images
 
