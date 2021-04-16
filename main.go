@@ -19,7 +19,10 @@ func main() {
 	loadEnv()
 
 	c := newCollector(endpoint)
-	prometheus.Register(c)
+	err := prometheus.Register(c)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(addr, nil))
@@ -35,7 +38,7 @@ func loadEnv() {
 
 	e, err := url.Parse(scheme + "://" + host + ":" + port + "/" + path)
 	if err != nil {
-		log.Fatal()
+		log.Fatal(err)
 	}
 
 	endpoint = e

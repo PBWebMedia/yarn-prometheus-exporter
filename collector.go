@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -177,7 +178,7 @@ func fetch(u *url.URL) (map[string]map[string]float64, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, errors.New("unexpected HTTP status: " + string(resp.StatusCode))
+		return nil, errors.New(fmt.Sprintf("unexpected HTTP status: %v", resp.StatusCode))
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
