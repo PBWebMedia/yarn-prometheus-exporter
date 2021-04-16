@@ -3,3 +3,6 @@ all: yarn-prometheus-exporter
 
 yarn-prometheus-exporter: main.go collector.go
 	go build .
+
+show-gofmt-complains:
+	@gofmt -l -d -s ./
