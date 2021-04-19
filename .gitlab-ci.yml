@@ -14,6 +14,7 @@ compile:
     - go mod download
     - if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then exit 1; fi;
     - go vet
+    - go test
     - CGO_ENABLED=0 go build -o yarn-prometheus-exporter .
   artifacts:
     name: "artifact_{$CI_COMMIT_SHA}"
