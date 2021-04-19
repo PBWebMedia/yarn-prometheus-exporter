@@ -106,6 +106,7 @@ func newCollector(endpoint *url.URL) *collector {
 		nodesDecommissioning:  newFuncMetric("nodes_decommissioning", "Nodes decommissioning"),
 		nodesRebooted:         newFuncMetric("nodes_rebooted", "Nodes rebooted"),
 		nodesActive:           newFuncMetric("nodes_active", "Nodes active"),
+		nodesShutdown:         newFuncMetric("nodes_shutdown", "Nodes shutdown"),
 		scrapeFailures:        newFuncMetric("scrape_failures_total", "Number of errors while scraping YARN metrics"),
 	}
 }
@@ -182,7 +183,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.nodesDecommissioning, prometheus.GaugeValue, float64(metrics.DecommissioningNodes))
 	ch <- prometheus.MustNewConstMetric(c.nodesRebooted, prometheus.GaugeValue, float64(metrics.RebootedNodes))
 	ch <- prometheus.MustNewConstMetric(c.nodesActive, prometheus.GaugeValue, float64(metrics.ActiveNodes))
-	ch <- prometheus.MustNewConstMetric(c.nodesActive, prometheus.GaugeValue, float64(metrics.ShutdownNodes))
+	ch <- prometheus.MustNewConstMetric(c.nodesShutdown, prometheus.GaugeValue, float64(metrics.ShutdownNodes))
 
 	return
 }
