@@ -12,6 +12,34 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type metrics struct {
+	AppsSubmitted         int `json:"appsSubmitted"`
+	AppsCompleted         int `json:"appsCompleted"`
+	AppsPending           int `json:"appsPending"`
+	AppsRunning           int `json:"appsRunning"`
+	AppsFailed            int `json:"appsFailed"`
+	AppsKilled            int `json:"appsKilled"`
+	ReservedMB            int `json:"reservedMB"`
+	AvailableMB           int `json:"availableMB"`
+	AllocatedMB           int `json:"allocatedMB"`
+	ReservedVirtualCores  int `json:"reservedVirtualCores"`
+	AvailableVirtualCores int `json:"availableVirtualCores"`
+	AllocatedVirtualCores int `json:"allocatedVirtualCores"`
+	ContainersAllocated   int `json:"containersAllocated"`
+	ContainersReserved    int `json:"containersReserved"`
+	ContainersPending     int `json:"containersPending"`
+	TotalMB               int `json:"totalMB"`
+	TotalVirtualCores     int `json:"totalVirtualCores"`
+	TotalNodes            int `json:"totalNodes"`
+	LostNodes             int `json:"lostNodes"`
+	UnhealthyNodes        int `json:"unhealthyNodes"`
+	DecommissioningNodes  int `json:"decommissioningNodes"`
+	DecommissionedNodes   int `json:"decommissionedNodes"`
+	RebootedNodes         int `json:"rebootedNodes"`
+	ActiveNodes           int `json:"activeNodes"`
+	ShutdownNodes         int `json:"shutdownNodes"`
+}
+
 type collector struct {
 	endpoint              *url.URL
 	up                    *prometheus.Desc
@@ -39,6 +67,7 @@ type collector struct {
 	nodesDecommissioning  *prometheus.Desc
 	nodesRebooted         *prometheus.Desc
 	nodesActive           *prometheus.Desc
+	nodesShutdown         *prometheus.Desc
 	scrapeFailures        *prometheus.Desc
 	failureCount          int
 }
@@ -107,13 +136,14 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.nodesDecommissioning
 	ch <- c.nodesRebooted
 	ch <- c.nodesActive
+	ch <- c.nodesShutdown
 	ch <- c.scrapeFailures
 }
 
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	up := 1.0
 
-	data, err := fetch(c.endpoint)
+	metrics, err := fetch(c.endpoint)
 	if err != nil {
 		up = 0.0
 		c.failureCount++
@@ -128,37 +158,36 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	metrics := data["clusterMetrics"]
-
-	ch <- prometheus.MustNewConstMetric(c.applicationsSubmitted, prometheus.CounterValue, metrics["appsSubmitted"])
-	ch <- prometheus.MustNewConstMetric(c.applicationsCompleted, prometheus.CounterValue, metrics["appsCompleted"])
-	ch <- prometheus.MustNewConstMetric(c.applicationsPending, prometheus.GaugeValue, metrics["appsPending"])
-	ch <- prometheus.MustNewConstMetric(c.applicationsRunning, prometheus.GaugeValue, metrics["appsRunning"])
-	ch <- prometheus.MustNewConstMetric(c.applicationsFailed, prometheus.CounterValue, metrics["appsFailed"])
-	ch <- prometheus.MustNewConstMetric(c.applicationsKilled, prometheus.CounterValue, metrics["appsKilled"])
-	ch <- prometheus.MustNewConstMetric(c.memoryReserved, prometheus.GaugeValue, metrics["reservedMB"])
-	ch <- prometheus.MustNewConstMetric(c.memoryAvailable, prometheus.GaugeValue, metrics["availableMB"])
-	ch <- prometheus.MustNewConstMetric(c.memoryAllocated, prometheus.GaugeValue, metrics["allocatedMB"])
-	ch <- prometheus.MustNewConstMetric(c.memoryTotal, prometheus.GaugeValue, metrics["totalMB"])
-	ch <- prometheus.MustNewConstMetric(c.virtualCoresReserved, prometheus.GaugeValue, metrics["reservedVirtualCores"])
-	ch <- prometheus.MustNewConstMetric(c.virtualCoresAvailable, prometheus.GaugeValue, metrics["availableVirtualCores"])
-	ch <- prometheus.MustNewConstMetric(c.virtualCoresAllocated, prometheus.GaugeValue, metrics["allocatedVirtualCores"])
-	ch <- prometheus.MustNewConstMetric(c.virtualCoresTotal, prometheus.GaugeValue, metrics["totalVirtualCores"])
-	ch <- prometheus.MustNewConstMetric(c.containersAllocated, prometheus.GaugeValue, metrics["containersAllocated"])
-	ch <- prometheus.MustNewConstMetric(c.containersReserved, prometheus.GaugeValue, metrics["containersReserved"])
-	ch <- prometheus.MustNewConstMetric(c.containersPending, prometheus.GaugeValue, metrics["containersPending"])
-	ch <- prometheus.MustNewConstMetric(c.nodesTotal, prometheus.GaugeValue, metrics["totalNodes"])
-	ch <- prometheus.MustNewConstMetric(c.nodesLost, prometheus.GaugeValue, metrics["lostNodes"])
-	ch <- prometheus.MustNewConstMetric(c.nodesUnhealthy, prometheus.GaugeValue, metrics["unhealthyNodes"])
-	ch <- prometheus.MustNewConstMetric(c.nodesDecommissioned, prometheus.GaugeValue, metrics["decommissionedNodes"])
-	ch <- prometheus.MustNewConstMetric(c.nodesDecommissioning, prometheus.GaugeValue, metrics["decommissioningNodes"])
-	ch <- prometheus.MustNewConstMetric(c.nodesRebooted, prometheus.GaugeValue, metrics["rebootedNodes"])
-	ch <- prometheus.MustNewConstMetric(c.nodesActive, prometheus.GaugeValue, metrics["activeNodes"])
+	ch <- prometheus.MustNewConstMetric(c.applicationsSubmitted, prometheus.CounterValue, float64(metrics.AppsSubmitted))
+	ch <- prometheus.MustNewConstMetric(c.applicationsCompleted, prometheus.CounterValue, float64(metrics.AppsCompleted))
+	ch <- prometheus.MustNewConstMetric(c.applicationsPending, prometheus.GaugeValue, float64(metrics.AppsPending))
+	ch <- prometheus.MustNewConstMetric(c.applicationsRunning, prometheus.GaugeValue, float64(metrics.AppsRunning))
+	ch <- prometheus.MustNewConstMetric(c.applicationsFailed, prometheus.CounterValue, float64(metrics.AppsFailed))
+	ch <- prometheus.MustNewConstMetric(c.applicationsKilled, prometheus.CounterValue, float64(metrics.AppsKilled))
+	ch <- prometheus.MustNewConstMetric(c.memoryReserved, prometheus.GaugeValue, float64(metrics.ReservedMB))
+	ch <- prometheus.MustNewConstMetric(c.memoryAvailable, prometheus.GaugeValue, float64(metrics.AvailableMB))
+	ch <- prometheus.MustNewConstMetric(c.memoryAllocated, prometheus.GaugeValue, float64(metrics.AllocatedMB))
+	ch <- prometheus.MustNewConstMetric(c.memoryTotal, prometheus.GaugeValue, float64(metrics.TotalMB))
+	ch <- prometheus.MustNewConstMetric(c.virtualCoresReserved, prometheus.GaugeValue, float64(metrics.ReservedVirtualCores))
+	ch <- prometheus.MustNewConstMetric(c.virtualCoresAvailable, prometheus.GaugeValue, float64(metrics.AvailableVirtualCores))
+	ch <- prometheus.MustNewConstMetric(c.virtualCoresAllocated, prometheus.GaugeValue, float64(metrics.AllocatedVirtualCores))
+	ch <- prometheus.MustNewConstMetric(c.virtualCoresTotal, prometheus.GaugeValue, float64(metrics.TotalVirtualCores))
+	ch <- prometheus.MustNewConstMetric(c.containersAllocated, prometheus.GaugeValue, float64(metrics.ContainersAllocated))
+	ch <- prometheus.MustNewConstMetric(c.containersReserved, prometheus.GaugeValue, float64(metrics.ContainersReserved))
+	ch <- prometheus.MustNewConstMetric(c.containersPending, prometheus.GaugeValue, float64(metrics.ContainersPending))
+	ch <- prometheus.MustNewConstMetric(c.nodesTotal, prometheus.GaugeValue, float64(metrics.TotalNodes))
+	ch <- prometheus.MustNewConstMetric(c.nodesLost, prometheus.GaugeValue, float64(metrics.LostNodes))
+	ch <- prometheus.MustNewConstMetric(c.nodesUnhealthy, prometheus.GaugeValue, float64(metrics.UnhealthyNodes))
+	ch <- prometheus.MustNewConstMetric(c.nodesDecommissioned, prometheus.GaugeValue, float64(metrics.DecommissionedNodes))
+	ch <- prometheus.MustNewConstMetric(c.nodesDecommissioning, prometheus.GaugeValue, float64(metrics.DecommissioningNodes))
+	ch <- prometheus.MustNewConstMetric(c.nodesRebooted, prometheus.GaugeValue, float64(metrics.RebootedNodes))
+	ch <- prometheus.MustNewConstMetric(c.nodesActive, prometheus.GaugeValue, float64(metrics.ActiveNodes))
+	ch <- prometheus.MustNewConstMetric(c.nodesActive, prometheus.GaugeValue, float64(metrics.ShutdownNodes))
 
 	return
 }
 
-func fetch(u *url.URL) (map[string]map[string]float64, error) {
+func fetch(u *url.URL) (*metrics, error) {
 	req := http.Request{
 		Method:     "GET",
 		URL:        u,
@@ -170,7 +199,6 @@ func fetch(u *url.URL) (map[string]map[string]float64, error) {
 	}
 
 	resp, err := http.DefaultClient.Do(&req)
-
 	if err != nil {
 		return nil, err
 	}
@@ -182,18 +210,15 @@ func fetch(u *url.URL) (map[string]map[string]float64, error) {
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
-
 	if err != nil {
 		return nil, err
 	}
 
-	var data map[string]map[string]float64
-
-	err = json.Unmarshal(body, &data)
-
+	var metrics metrics
+	err = json.Unmarshal(body, &metrics)
 	if err != nil {
 		return nil, err
 	}
 
-	return data, nil
+	return &metrics, nil
 }
