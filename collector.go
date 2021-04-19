@@ -4,13 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+type clusterMetrics struct {
+	ClusterMetrics metrics `json:"clusterMetrics"`
+}
 
 type metrics struct {
 	AppsSubmitted         int `json:"appsSubmitted"`
@@ -210,11 +213,11 @@ func fetch(u *url.URL) (*metrics, error) {
 		return nil, errors.New(fmt.Sprintf("unexpected HTTP status: %v", resp.StatusCode))
 	}
 
-	var m metrics
-	err = json.NewDecoder(resp.Body).Decode(&m)
+	var c clusterMetrics
+	err = json.NewDecoder(resp.Body).Decode(&c)
 	if err != nil {
 		return nil, err
 	}
 
-	return &m, nil
+	return &c.ClusterMetrics, nil
 }
