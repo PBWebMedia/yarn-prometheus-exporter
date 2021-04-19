@@ -210,16 +210,11 @@ func fetch(u *url.URL) (*metrics, error) {
 		return nil, errors.New(fmt.Sprintf("unexpected HTTP status: %v", resp.StatusCode))
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	var m metrics
+	err = json.NewDecoder(resp.Body).Decode(&m)
 	if err != nil {
 		return nil, err
 	}
 
-	var metrics metrics
-	err = json.Unmarshal(body, &metrics)
-	if err != nil {
-		return nil, err
-	}
-
-	return &metrics, nil
+	return &m, nil
 }
