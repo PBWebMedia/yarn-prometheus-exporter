@@ -1,4 +1,4 @@
-image: golang:1-buster
+image: golang:1
 
 stages:
   - build
