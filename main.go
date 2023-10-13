@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -40,6 +41,8 @@ func loadEnv() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Print("Getting metrics from: " + scheme + "://" + host + ":" + port + "/" + path + "\r\n")
 
 	endpoint = e
 }
