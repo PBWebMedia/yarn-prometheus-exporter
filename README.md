@@ -17,7 +17,6 @@ The exporter can be configured using environment variables. These are the defaul
     YARN_PROMETHEUS_ENDPOINT_SCHEME=http
     YARN_PROMETHEUS_ENDPOINT_HOST=localhost
     YARN_PROMETHEUS_ENDPOINT_PORT=8088
-    YARN_PROMETHEUS_ENDPOINT_PATH=ws/v1/cluster/metrics
 
 Run the exporter:
 
