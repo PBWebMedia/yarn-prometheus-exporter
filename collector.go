@@ -85,6 +85,7 @@ type collector struct {
 	nodes          *prometheus.Desc
 
 	queueCapacity         *prometheus.Desc
+	queueUsedCapacity     *prometheus.Desc
 	queueMaxCapacity      *prometheus.Desc
 	queueApplicationCount *prometheus.Desc
 	queueUsedMemoryBytes  *prometheus.Desc
@@ -109,6 +110,7 @@ func newCollector(endpoint string) *collector {
 		nodes:          newFuncMetric("nodes_total", "Node stats", []string{"status"}),
 
 		queueCapacity:         newFuncMetric("queue_capacity", "Queue capacity", []string{"queue"}),
+		queueUsedCapacity:     newFuncMetric("queue_used_capacity", "Queue used capacity", []string{"queue"}),
 		queueMaxCapacity:      newFuncMetric("queue_max_capacity", "Queue max capacity", []string{"queue"}),
 		queueApplicationCount: newFuncMetric("queue_application_count", "Queue application count", []string{"queue"}),
 		queueUsedMemoryBytes:  newFuncMetric("queue_used_memory_bytes", "Queue used memory bytes", []string{"queue"}),
@@ -125,6 +127,7 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.containers
 	ch <- c.nodes
 	ch <- c.queueCapacity
+	ch <- c.queueUsedCapacity
 	ch <- c.queueMaxCapacity
 	ch <- c.queueApplicationCount
 	ch <- c.queueUsedMemoryBytes
@@ -189,6 +192,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 
 	for _, q := range s.SchedulerInfo.Queues.Queue {
 		ch <- prometheus.MustNewConstMetric(c.queueCapacity, prometheus.GaugeValue, q.Capacity, q.QueueName)
+		ch <- prometheus.MustNewConstMetric(c.queueUsedCapacity, prometheus.GaugeValue, q.UsedCapacity, q.QueueName)
 		ch <- prometheus.MustNewConstMetric(c.queueMaxCapacity, prometheus.GaugeValue, q.MaxCapacity, q.QueueName)
 		ch <- prometheus.MustNewConstMetric(c.queueApplicationCount, prometheus.GaugeValue, float64(q.NumApplications), q.QueueName)
 		ch <- prometheus.MustNewConstMetric(c.queueUsedMemoryBytes, prometheus.GaugeValue, float64(q.ResourcesUsed.Memory)*1024*1024, q.QueueName)
