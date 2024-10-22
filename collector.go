@@ -2,20 +2,17 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"log"
 	"net/http"
-	"net/url"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
-type clusterMetrics struct {
-	ClusterMetrics metrics `json:"clusterMetrics"`
+type clusterMetricsResponse struct {
+	ClusterMetrics clusterMetrics `json:"clusterMetrics"`
 }
 
-type metrics struct {
+type clusterMetrics struct {
 	AppsSubmitted         int `json:"appsSubmitted"`
 	AppsCompleted         int `json:"appsCompleted"`
 	AppsPending           int `json:"appsPending"`
@@ -43,111 +40,109 @@ type metrics struct {
 	ShutdownNodes         int `json:"shutdownNodes"`
 }
 
+type schedulerResponse struct {
+	Scheduler scheduler `json:"scheduler"`
+}
+
+type scheduler struct {
+	SchedulerInfo schedulerInfo `json:"schedulerInfo"`
+}
+
+type schedulerInfo struct {
+	Queues schedulerQueues `json:"queues"`
+}
+
+type schedulerQueues struct {
+	Queue []schedulerQueue `json:"queue"`
+}
+
+type schedulerQueue struct {
+	Capacity        float64 `json:"capacity"`
+	UsedCapacity    float64 `json:"usedCapacity"`
+	MaxCapacity     float64 `json:"maxCapacity"`
+	NumApplications int     `json:"numApplications"`
+	QueueName       string  `json:"queueName"`
+	State           string  `json:"state"`
+
+	ResourcesUsed SchedulerQueueResourcesUsed `json:"resourcesUsed"`
+}
+
+type SchedulerQueueResourcesUsed struct {
+	Memory int `json:"memory,omitempty"`
+	VCores int `json:"vCores,omitempty"`
+}
+
 type collector struct {
-	endpoint              *url.URL
-	up                    *prometheus.Desc
-	applicationsSubmitted *prometheus.Desc
-	applicationsCompleted *prometheus.Desc
-	applicationsPending   *prometheus.Desc
-	applicationsRunning   *prometheus.Desc
-	applicationsFailed    *prometheus.Desc
-	applicationsKilled    *prometheus.Desc
-	memoryReserved        *prometheus.Desc
-	memoryAvailable       *prometheus.Desc
-	memoryAllocated       *prometheus.Desc
-	memoryTotal           *prometheus.Desc
-	virtualCoresReserved  *prometheus.Desc
-	virtualCoresAvailable *prometheus.Desc
-	virtualCoresAllocated *prometheus.Desc
-	virtualCoresTotal     *prometheus.Desc
-	containersAllocated   *prometheus.Desc
-	containersReserved    *prometheus.Desc
-	containersPending     *prometheus.Desc
-	nodesTotal            *prometheus.Desc
-	nodesLost             *prometheus.Desc
-	nodesUnhealthy        *prometheus.Desc
-	nodesDecommissioned   *prometheus.Desc
-	nodesDecommissioning  *prometheus.Desc
-	nodesRebooted         *prometheus.Desc
-	nodesActive           *prometheus.Desc
-	nodesShutdown         *prometheus.Desc
-	scrapeFailures        *prometheus.Desc
-	failureCount          int
+	endpoint string
+
+	up             *prometheus.Desc
+	scrapeFailures *prometheus.Desc
+	failureCount   int
+	applications   *prometheus.Desc
+	memory         *prometheus.Desc
+	cores          *prometheus.Desc
+	containers     *prometheus.Desc
+	nodes          *prometheus.Desc
+
+	queueCapacity         *prometheus.Desc
+	queueMaxCapacity      *prometheus.Desc
+	queueApplicationCount *prometheus.Desc
+	queueUsedMemoryBytes  *prometheus.Desc
+	queueUsedVCoresCount  *prometheus.Desc
 }
 
 const metricsNamespace = "yarn"
 
-func newFuncMetric(metricName string, docString string) *prometheus.Desc {
-	return prometheus.NewDesc(prometheus.BuildFQName(metricsNamespace, "", metricName), docString, nil, nil)
+func newFuncMetric(metricName string, docString string, labels []string) *prometheus.Desc {
+	return prometheus.NewDesc(prometheus.BuildFQName(metricsNamespace, "", metricName), docString, labels, nil)
 }
 
-func newCollector(endpoint *url.URL) *collector {
+func newCollector(endpoint string) *collector {
 	return &collector{
-		endpoint:              endpoint,
-		up:                    newFuncMetric("up", "Able to contact YARN"),
-		applicationsSubmitted: newFuncMetric("applications_submitted", "Total applications submitted"),
-		applicationsCompleted: newFuncMetric("applications_completed", "Total applications completed"),
-		applicationsPending:   newFuncMetric("applications_pending", "Applications pending"),
-		applicationsRunning:   newFuncMetric("applications_running", "Applications running"),
-		applicationsFailed:    newFuncMetric("applications_failed", "Total application failed"),
-		applicationsKilled:    newFuncMetric("applications_killed", "Total application killed"),
-		memoryReserved:        newFuncMetric("memory_reserved", "Memory reserved"),
-		memoryAvailable:       newFuncMetric("memory_available", "Memory available"),
-		memoryAllocated:       newFuncMetric("memory_allocated", "Memory allocated"),
-		memoryTotal:           newFuncMetric("memory_total", "Total memory"),
-		virtualCoresReserved:  newFuncMetric("virtual_cores_reserved", "Virtual cores reserved"),
-		virtualCoresAvailable: newFuncMetric("virtual_cores_available", "Virtual cores available"),
-		virtualCoresAllocated: newFuncMetric("virtual_cores_allocated", "Virtual cores allocated"),
-		virtualCoresTotal:     newFuncMetric("virtual_cores_total", "Total virtual cores"),
-		containersAllocated:   newFuncMetric("containers_allocated", "Containers allocated"),
-		containersReserved:    newFuncMetric("containers_reserved", "Containers reserved"),
-		containersPending:     newFuncMetric("containers_pending", "Containers pending"),
-		nodesTotal:            newFuncMetric("nodes_total", "Nodes total"),
-		nodesLost:             newFuncMetric("nodes_lost", "Nodes lost"),
-		nodesUnhealthy:        newFuncMetric("nodes_unhealthy", "Nodes unhealthy"),
-		nodesDecommissioned:   newFuncMetric("nodes_decommissioned", "Nodes decommissioned"),
-		nodesDecommissioning:  newFuncMetric("nodes_decommissioning", "Nodes decommissioning"),
-		nodesRebooted:         newFuncMetric("nodes_rebooted", "Nodes rebooted"),
-		nodesActive:           newFuncMetric("nodes_active", "Nodes active"),
-		nodesShutdown:         newFuncMetric("nodes_shutdown", "Nodes shutdown"),
-		scrapeFailures:        newFuncMetric("scrape_failures_total", "Number of errors while scraping YARN metrics"),
+		endpoint:       endpoint,
+		up:             newFuncMetric("up", "Able to contact YARN", nil),
+		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping YARN metrics", nil),
+		applications:   newFuncMetric("applications_total", "Applications stats", []string{"status"}),
+		memory:         newFuncMetric("memory_bytes", "Memory allocation stats", []string{"status"}),
+		cores:          newFuncMetric("cores_total", "Cpu allocation stats", []string{"status"}),
+		containers:     newFuncMetric("containers_total", "Container stats", []string{"status"}),
+		nodes:          newFuncMetric("nodes_total", "Node stats", []string{"status"}),
+
+		queueCapacity:         newFuncMetric("queue_capacity", "Queue capacity", []string{"queue"}),
+		queueMaxCapacity:      newFuncMetric("queue_max_capacity", "Queue max capacity", []string{"queue"}),
+		queueApplicationCount: newFuncMetric("queue_application_count", "Queue application count", []string{"queue"}),
+		queueUsedMemoryBytes:  newFuncMetric("queue_used_memory_bytes", "Queue used memory bytes", []string{"queue"}),
+		queueUsedVCoresCount:  newFuncMetric("queue_used_vcores_count", "Queue used vcores count", []string{"queue"}),
 	}
 }
 
 func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.up
-	ch <- c.applicationsSubmitted
-	ch <- c.applicationsCompleted
-	ch <- c.applicationsPending
-	ch <- c.applicationsRunning
-	ch <- c.applicationsFailed
-	ch <- c.applicationsKilled
-	ch <- c.memoryReserved
-	ch <- c.memoryAvailable
-	ch <- c.memoryAllocated
-	ch <- c.memoryTotal
-	ch <- c.virtualCoresReserved
-	ch <- c.virtualCoresAvailable
-	ch <- c.virtualCoresAllocated
-	ch <- c.virtualCoresTotal
-	ch <- c.containersAllocated
-	ch <- c.containersReserved
-	ch <- c.containersPending
-	ch <- c.nodesTotal
-	ch <- c.nodesLost
-	ch <- c.nodesUnhealthy
-	ch <- c.nodesDecommissioned
-	ch <- c.nodesDecommissioning
-	ch <- c.nodesRebooted
-	ch <- c.nodesActive
-	ch <- c.nodesShutdown
 	ch <- c.scrapeFailures
+	ch <- c.applications
+	ch <- c.memory
+	ch <- c.cores
+	ch <- c.containers
+	ch <- c.nodes
+	ch <- c.queueCapacity
+	ch <- c.queueMaxCapacity
+	ch <- c.queueApplicationCount
+	ch <- c.queueUsedMemoryBytes
+	ch <- c.queueUsedVCoresCount
 }
 
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	up := 1.0
 
-	metrics, err := fetch(c.endpoint)
+	m, err := c.fetchClusterMetrics()
+	if err != nil {
+		up = 0.0
+		c.failureCount++
+
+		log.Println("Error while collecting data from YARN: " + err.Error())
+	}
+
+	s, err := c.fetchSchedulerMetrics()
 	if err != nil {
 		up = 0.0
 		c.failureCount++
@@ -162,62 +157,83 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.applicationsSubmitted, prometheus.CounterValue, float64(metrics.AppsSubmitted))
-	ch <- prometheus.MustNewConstMetric(c.applicationsCompleted, prometheus.CounterValue, float64(metrics.AppsCompleted))
-	ch <- prometheus.MustNewConstMetric(c.applicationsPending, prometheus.GaugeValue, float64(metrics.AppsPending))
-	ch <- prometheus.MustNewConstMetric(c.applicationsRunning, prometheus.GaugeValue, float64(metrics.AppsRunning))
-	ch <- prometheus.MustNewConstMetric(c.applicationsFailed, prometheus.CounterValue, float64(metrics.AppsFailed))
-	ch <- prometheus.MustNewConstMetric(c.applicationsKilled, prometheus.CounterValue, float64(metrics.AppsKilled))
-	ch <- prometheus.MustNewConstMetric(c.memoryReserved, prometheus.GaugeValue, float64(metrics.ReservedMB))
-	ch <- prometheus.MustNewConstMetric(c.memoryAvailable, prometheus.GaugeValue, float64(metrics.AvailableMB))
-	ch <- prometheus.MustNewConstMetric(c.memoryAllocated, prometheus.GaugeValue, float64(metrics.AllocatedMB))
-	ch <- prometheus.MustNewConstMetric(c.memoryTotal, prometheus.GaugeValue, float64(metrics.TotalMB))
-	ch <- prometheus.MustNewConstMetric(c.virtualCoresReserved, prometheus.GaugeValue, float64(metrics.ReservedVirtualCores))
-	ch <- prometheus.MustNewConstMetric(c.virtualCoresAvailable, prometheus.GaugeValue, float64(metrics.AvailableVirtualCores))
-	ch <- prometheus.MustNewConstMetric(c.virtualCoresAllocated, prometheus.GaugeValue, float64(metrics.AllocatedVirtualCores))
-	ch <- prometheus.MustNewConstMetric(c.virtualCoresTotal, prometheus.GaugeValue, float64(metrics.TotalVirtualCores))
-	ch <- prometheus.MustNewConstMetric(c.containersAllocated, prometheus.GaugeValue, float64(metrics.ContainersAllocated))
-	ch <- prometheus.MustNewConstMetric(c.containersReserved, prometheus.GaugeValue, float64(metrics.ContainersReserved))
-	ch <- prometheus.MustNewConstMetric(c.containersPending, prometheus.GaugeValue, float64(metrics.ContainersPending))
-	ch <- prometheus.MustNewConstMetric(c.nodesTotal, prometheus.GaugeValue, float64(metrics.TotalNodes))
-	ch <- prometheus.MustNewConstMetric(c.nodesLost, prometheus.GaugeValue, float64(metrics.LostNodes))
-	ch <- prometheus.MustNewConstMetric(c.nodesUnhealthy, prometheus.GaugeValue, float64(metrics.UnhealthyNodes))
-	ch <- prometheus.MustNewConstMetric(c.nodesDecommissioned, prometheus.GaugeValue, float64(metrics.DecommissionedNodes))
-	ch <- prometheus.MustNewConstMetric(c.nodesDecommissioning, prometheus.GaugeValue, float64(metrics.DecommissioningNodes))
-	ch <- prometheus.MustNewConstMetric(c.nodesRebooted, prometheus.GaugeValue, float64(metrics.RebootedNodes))
-	ch <- prometheus.MustNewConstMetric(c.nodesActive, prometheus.GaugeValue, float64(metrics.ActiveNodes))
-	ch <- prometheus.MustNewConstMetric(c.nodesShutdown, prometheus.GaugeValue, float64(metrics.ShutdownNodes))
+	ch <- prometheus.MustNewConstMetric(c.applications, prometheus.GaugeValue, float64(m.AppsSubmitted), "submitted")
+	ch <- prometheus.MustNewConstMetric(c.applications, prometheus.GaugeValue, float64(m.AppsCompleted), "completed")
+	ch <- prometheus.MustNewConstMetric(c.applications, prometheus.GaugeValue, float64(m.AppsPending), "pending")
+	ch <- prometheus.MustNewConstMetric(c.applications, prometheus.GaugeValue, float64(m.AppsRunning), "running")
+	ch <- prometheus.MustNewConstMetric(c.applications, prometheus.GaugeValue, float64(m.AppsFailed), "failed")
+	ch <- prometheus.MustNewConstMetric(c.applications, prometheus.GaugeValue, float64(m.AppsKilled), "killed")
 
-	return
+	ch <- prometheus.MustNewConstMetric(c.memory, prometheus.GaugeValue, float64(m.ReservedMB)*1024*1024, "submitted")
+	ch <- prometheus.MustNewConstMetric(c.memory, prometheus.GaugeValue, float64(m.AvailableMB)*1024*1024, "available")
+	ch <- prometheus.MustNewConstMetric(c.memory, prometheus.GaugeValue, float64(m.AllocatedMB)*1024*1024, "allocated")
+	ch <- prometheus.MustNewConstMetric(c.memory, prometheus.GaugeValue, float64(m.TotalMB)*1024*1024, "total")
+
+	ch <- prometheus.MustNewConstMetric(c.cores, prometheus.GaugeValue, float64(m.ReservedVirtualCores), "reserved")
+	ch <- prometheus.MustNewConstMetric(c.cores, prometheus.GaugeValue, float64(m.AvailableVirtualCores), "available")
+	ch <- prometheus.MustNewConstMetric(c.cores, prometheus.GaugeValue, float64(m.AllocatedVirtualCores), "allocated")
+	ch <- prometheus.MustNewConstMetric(c.cores, prometheus.GaugeValue, float64(m.TotalVirtualCores), "total")
+
+	ch <- prometheus.MustNewConstMetric(c.containers, prometheus.GaugeValue, float64(m.ContainersAllocated), "allocated")
+	ch <- prometheus.MustNewConstMetric(c.containers, prometheus.GaugeValue, float64(m.ContainersReserved), "reserved")
+	ch <- prometheus.MustNewConstMetric(c.containers, prometheus.GaugeValue, float64(m.ContainersPending), "pending")
+
+	ch <- prometheus.MustNewConstMetric(c.nodes, prometheus.GaugeValue, float64(m.TotalNodes), "total")
+	ch <- prometheus.MustNewConstMetric(c.nodes, prometheus.GaugeValue, float64(m.LostNodes), "lost")
+	ch <- prometheus.MustNewConstMetric(c.nodes, prometheus.GaugeValue, float64(m.UnhealthyNodes), "unhealthy")
+	ch <- prometheus.MustNewConstMetric(c.nodes, prometheus.GaugeValue, float64(m.DecommissionedNodes), "decommissioned")
+	ch <- prometheus.MustNewConstMetric(c.nodes, prometheus.GaugeValue, float64(m.DecommissioningNodes), "decommissioning")
+	ch <- prometheus.MustNewConstMetric(c.nodes, prometheus.GaugeValue, float64(m.RebootedNodes), "rebooted")
+	ch <- prometheus.MustNewConstMetric(c.nodes, prometheus.GaugeValue, float64(m.ActiveNodes), "active")
+	ch <- prometheus.MustNewConstMetric(c.nodes, prometheus.GaugeValue, float64(m.ShutdownNodes), "shutdown")
+
+	for _, q := range s.SchedulerInfo.Queues.Queue {
+		ch <- prometheus.MustNewConstMetric(c.queueCapacity, prometheus.GaugeValue, q.Capacity, q.QueueName)
+		ch <- prometheus.MustNewConstMetric(c.queueMaxCapacity, prometheus.GaugeValue, q.MaxCapacity, q.QueueName)
+		ch <- prometheus.MustNewConstMetric(c.queueApplicationCount, prometheus.GaugeValue, float64(q.NumApplications), q.QueueName)
+		ch <- prometheus.MustNewConstMetric(c.queueUsedMemoryBytes, prometheus.GaugeValue, float64(q.ResourcesUsed.Memory)*1024*1024, q.QueueName)
+		ch <- prometheus.MustNewConstMetric(c.queueUsedVCoresCount, prometheus.GaugeValue, float64(q.ResourcesUsed.VCores), q.QueueName)
+	}
 }
 
-func fetch(u *url.URL) (*metrics, error) {
-	req := http.Request{
-		Method:     "GET",
-		URL:        u,
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     make(http.Header),
-		Host:       u.Host,
-	}
-
-	resp, err := http.DefaultClient.Do(&req)
+func (c *collector) fetchClusterMetrics() (*clusterMetrics, error) {
+	var r clusterMetricsResponse
+	err := c.fetch("ws/v1/cluster/metrics", &r)
 	if err != nil {
 		return nil, err
 	}
+	return &r.ClusterMetrics, nil
+}
 
+func (c *collector) fetchSchedulerMetrics() (*scheduler, error) {
+	var r schedulerResponse
+	err := c.fetch("ws/v1/cluster/scheduler", &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r.Scheduler, nil
+}
+
+func (c *collector) fetch(path string, v any) error {
+	req, err := http.NewRequest(http.MethodGet, c.endpoint+path, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return nil, errors.New(fmt.Sprintf("unexpected HTTP status: %v", resp.StatusCode))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected HTTP status: %v", resp.StatusCode)
 	}
 
-	var c clusterMetrics
-	err = json.NewDecoder(resp.Body).Decode(&c)
+	err = json.NewDecoder(resp.Body).Decode(v)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &c.ClusterMetrics, nil
+	return nil
 }

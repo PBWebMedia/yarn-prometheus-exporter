@@ -12,7 +12,7 @@ func TestDecodeJSON(t *testing.T) {
 		t.Error(err)
 	}
 
-	var c clusterMetrics
+	var c clusterMetricsResponse
 	err = json.NewDecoder(jsonFile).Decode(&c)
 	if err != nil {
 		t.Error(err)
