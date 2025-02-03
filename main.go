@@ -15,6 +15,8 @@ var (
 )
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Print("Starting yarn-prometheus-exporter")
 	loadEnv()
 
 	c := newCollector(endpoint)
@@ -22,6 +24,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Print("Listening on: ", addr)
 
 	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(addr, nil))

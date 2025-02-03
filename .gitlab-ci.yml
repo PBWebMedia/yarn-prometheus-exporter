@@ -7,7 +7,7 @@ stages:
 variables:
   DOCKER_DRIVER: overlay2
 
-compile:
+compile-linux-amd64:
   stage: build
   script:
     - go version
@@ -15,12 +15,30 @@ compile:
     - if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then exit 1; fi;
     - go vet
     - go test
-    - CGO_ENABLED=0 go build -o yarn-prometheus-exporter .
+    - mkdir -p build/linux/amd64
+    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ldflags="-w -s" -o build/linux/amd64/yarn-prometheus-exporter .
   artifacts:
-    name: "artifact_{$CI_COMMIT_SHA}"
+    name: "compile_linux_amd64_{$CI_COMMIT_SHA}"
     expire_in: 30 min
     paths:
-      - yarn-prometheus-exporter
+      - build/linux/amd64
+      - Dockerfile
+
+compile-linux-arm64:
+  stage: build
+  script:
+    - go version
+    - go mod download
+    - if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then exit 1; fi;
+    - go vet
+    - go test
+    - mkdir -p build/linux/arm64
+    - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build ldflags="-w -s" -o build/linux/arm64/yarn-prometheus-exporter .
+  artifacts:
+    name: "compile_linux_arm64_{$CI_COMMIT_SHA}"
+    expire_in: 30 min
+    paths:
+      - build/linux/arm64
       - Dockerfile
 
 build-docker:
@@ -34,10 +52,11 @@ build-docker:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
   script:
     - if [ "${CI_COMMIT_REF_SLUG}" == "master" ]; then IMAGE_TAG="latest"; else IMAGE_TAG="${CI_COMMIT_REF_SLUG}"; fi
-    - docker build --pull -t $CI_REGISTRY_IMAGE:$IMAGE_TAG .
-    - docker push $CI_REGISTRY_IMAGE:$IMAGE_TAG
-  dependencies:
-    - compile
+    - docker buildx create --use
+    - docker buildx build --platform linux/amd64,linux/arm64 --provenance false --pull -t $CI_REGISTRY_IMAGE:$IMAGE_TAG . --push
+  needs:
+    - compile-linux-amd64
+    - compile-linux-arm64
   variables:
     GIT_STRATEGY: none
   tags:

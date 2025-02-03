@@ -1,4 +1,7 @@
 FROM scratch
 
-COPY ./yarn-prometheus-exporter /yarn-prometheus-exporter
+ARG TARGETPLATFORM
+
+COPY /build/$TARGETPLATFORM/ /
+
 ENTRYPOINT ["/yarn-prometheus-exporter"]
