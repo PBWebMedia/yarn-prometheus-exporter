@@ -76,16 +76,12 @@ func loadEndpoints() []string {
 	port := getEnvOr("YARN_PROMETHEUS_ENDPOINT_PORT", "8088")
 
 	if host == "" {
-		log.Fatal("YARN_PROMETHEUS_ENDPOINT_HOST is not set")
+		log.Fatal("YARN_PROMETHEUS_ENDPOINT_HOST is empty")
 	}
 
-	if !strings.Contains(host, ",") {
-		return []string{scheme + "://" + host + ":" + port + "/"}
-	}
-
-	res := make([]string, 0, 1)
-	for i, h := range strings.Split(host, ",") {
-		res[i] = scheme + "://" + h + ":" + port + "/"
+	res := make([]string, 0)
+	for _, h := range strings.Split(host, ",") {
+		res = append(res, scheme+"://"+h+":"+port+"/")
 	}
 
 	return res
