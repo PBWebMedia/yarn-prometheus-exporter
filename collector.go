@@ -163,7 +163,7 @@ func (k *KerberosConfig) SetCredentials(krb5ConfigPath, keyTabFile, username str
 }
 
 type collector struct {
-	endpoint []string
+	endpoints []string
 
 	up             *prometheus.Desc
 	scrapeFailures *prometheus.Desc
@@ -221,7 +221,7 @@ func newGaugeVecMetric(metricName string, docString string, labels []string) *pr
 
 func newCollector(endpoints []string) *collector {
 	c := &collector{
-		endpoint:       endpoints,
+		endpoints:      endpoints,
 		up:             newMetric("up", "Able to contact YARN", nil),
 		scrapeFailures: newMetric("scrape_failures_total", "Number of errors while scraping YARN metrics", nil),
 		applications:   newMetric("applications_total", "Applications stats", []string{"status"}),
@@ -479,8 +479,8 @@ func (c *collector) fetch(path string, v any) error {
 		err  error
 	)
 
-	for i := 0; i < len(c.endpoint); i++ {
-		resp, err = http.Get(c.endpoint[i] + path)
+	for i := 0; i < len(c.endpoints); i++ {
+		resp, err = http.Get(c.endpoints[i] + path)
 		if err != nil {
 			continue
 		}
@@ -525,8 +525,8 @@ func (c *collector) httpKrbRequest(path string, v any) error {
 		return fmt.Errorf("error parsing kerberos keytab file: %s, error: %v", c.kerberosConfig.KeyTabFile, err)
 	}
 
-	for i := 0; i < len(c.endpoint); i++ {
-		req, err = http.NewRequest("GET", c.endpoint[i]+path, nil)
+	for i := 0; i < len(c.endpoints); i++ {
+		req, err = http.NewRequest("GET", c.endpoints[i]+path, nil)
 		if err != nil {
 			continue
 		}
