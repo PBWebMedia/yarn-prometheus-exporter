@@ -17,16 +17,16 @@ YARN Prometheus Exporter
 
 Environment variables:
   YARN_PROMETHEUS_ENDPOINT_HOST    Comma-separated list of YARN ResourceManager hosts (default: localhost)
-                         		     Example: yarn-rm1,yarn-rm2
+                                     Example: yarn-rm1,yarn-rm2
   YARN_PROMETHEUS_ENDPOINT_PORT    Port to expose Prometheus metrics (default: 8088)
   YARN_PROMETHEUS_ENDPOINT_SCHEME  Scheme to use for YARN ResourceManager endpoints (default: http)
-  YARN_PROMETHEUS_LISTEN_ADDR  	   Port to expose Prometheus metrics (default: :9113)
+  YARN_PROMETHEUS_LISTEN_ADDR      Port to expose Prometheus metrics (default: :9113)
 
   Kerberos settings:
-  	YARN_KERBEROS_CONFIG    	   Path to krb5.conf file for Kerberos authentication (optional)
-  	YARN_KERBEROS_KEYTAB    	   Path to keytab file for Kerberos authentication (optional)
-  	YARN_KERBEROS_PRINCIPAL 	   Principal name (username) for Kerberos authentication (optional)
-									 Format: name@REALM
+    YARN_KERBEROS_CONFIG         Path to krb5.conf file for Kerberos authentication (optional)
+    YARN_KERBEROS_KEYTAB         Path to keytab file for Kerberos authentication (optional)
+    YARN_KERBEROS_PRINCIPAL      Principal name (username) for Kerberos authentication (optional)
+                                   Format: name@REALM
 
  Usage:
     yarn-prometheus-exporter [flags]
