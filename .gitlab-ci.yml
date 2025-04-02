@@ -54,6 +54,9 @@ build-docker:
     - if [ "${CI_COMMIT_REF_SLUG}" == "master" ]; then IMAGE_TAG="latest"; else IMAGE_TAG="${CI_COMMIT_REF_SLUG}"; fi
     - docker buildx create --use
     - docker buildx build --platform linux/amd64,linux/arm64 --provenance false --pull -t $CI_REGISTRY_IMAGE:$IMAGE_TAG . --push
+  after_script:
+    - docker buildx stop
+    - docker buildx rm
   needs:
     - compile-linux-amd64
     - compile-linux-arm64
