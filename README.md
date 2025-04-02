@@ -44,10 +44,11 @@ Or using docker-compose:
 
 # Kerberos support
 
-If you run kerberized cliuster, you can add support via next environment variables:
-YARN_KERBEROS_CONFIG=/etc/krb5.conf
-YARN_KERBEROS_KEYTAB=/path/to/file.keytab
-YARN_KERBEROS_PRINCIPAL=username@real
+If you run kerberized cluster, you can add support via next environment variables:
+
+    YARN_KERBEROS_CONFIG=/etc/krb5.conf
+    YARN_KERBEROS_KEYTAB=/path/to/file.keytab
+    YARN_KERBEROS_PRINCIPAL=username@real
 
 # License
 
